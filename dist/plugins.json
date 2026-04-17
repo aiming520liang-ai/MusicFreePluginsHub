@@ -77,12 +77,12 @@
       "version": "1.1.0"
     },
     {
-      "name": "qq_1",
+      "name": "qq",
       "url": "https://13413.kstore.vip/yuanli/qq.js",
       "version": "1.1.1"
     },
     {
-      "name": "mg_1",
+      "name": "mg",
       "url": "https://13413.kstore.vip/yuanli/xiaomi.js",
       "version": "1.1.0"
     },
@@ -177,12 +177,12 @@
       "version": "0.1.0"
     },
     {
-      "name": "qq",
+      "name": "qq_1",
       "url": "http://music.haitangw.net/cqapi/qq.js",
       "version": "0.1.0"
     },
     {
-      "name": "mg",
+      "name": "mg_1",
       "url": "http://music.haitangw.net/cqapi/xiaomi.js",
       "version": "0.1.0"
     },
