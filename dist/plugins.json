@@ -32,7 +32,7 @@
       "version": "0.0.0"
     },
     {
-      "name": "猫耳FM",
+      "name": "猫耳FM_1",
       "url": "https://gitee.com/maotoumao/MusicFreePlugins/raw/v0.1/dist/maoerfm/index.js",
       "version": "0.1.4"
     },
@@ -77,12 +77,12 @@
       "version": "1.2.0"
     },
     {
-      "name": "qq_1",
+      "name": "qq",
       "url": "https://13413.kstore.vip/yuanli/qq.js",
       "version": "1.2.0"
     },
     {
-      "name": "mg_1",
+      "name": "mg",
       "url": "https://13413.kstore.vip/yuanli/xiaomi.js",
       "version": "1.2.0"
     },
@@ -157,7 +157,7 @@
       "version": "0.1.1"
     },
     {
-      "name": "猫耳FM_1",
+      "name": "猫耳FM",
       "url": "http://adad23u.appinstall.life/dist/maoerfm/index.js",
       "version": "0.1.2"
     },
@@ -187,22 +187,22 @@
       "version": "0.1.0"
     },
     {
-      "name": "酷我_2",
+      "name": "酷我_1",
       "url": "http://music.haitangw.net/cqapi/kw.js",
       "version": "0.1.0"
     },
     {
-      "name": "酷我_1",
+      "name": "酷我_2",
       "url": "http://music.haitangw.net/cqapi/kg.js",
       "version": "0.1.0"
     },
     {
-      "name": "qq",
+      "name": "qq_1",
       "url": "http://music.haitangw.net/cqapi/qq.js",
       "version": "0.1.0"
     },
     {
-      "name": "mg",
+      "name": "mg_1",
       "url": "http://music.haitangw.net/cqapi/xiaomi.js",
       "version": "0.1.0"
     },
