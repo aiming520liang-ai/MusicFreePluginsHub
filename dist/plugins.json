@@ -32,7 +32,7 @@
       "version": "0.0.0"
     },
     {
-      "name": "猫耳FM_1",
+      "name": "猫耳FM",
       "url": "https://gitee.com/maotoumao/MusicFreePlugins/raw/v0.1/dist/maoerfm/index.js",
       "version": "0.1.4"
     },
@@ -157,12 +157,12 @@
       "version": "0.1.1"
     },
     {
-      "name": "猫耳FM",
+      "name": "猫耳FM_1",
       "url": "http://adad23u.appinstall.life/dist/maoerfm/index.js",
       "version": "0.1.2"
     },
     {
-      "name": "W电台_1",
+      "name": "W电台",
       "url": "https://fastly.jsdelivr.net/gh/GuGuMur/MusicFreePlugin-NeteaseRadio@master/dist/plugin.js",
       "version": "0.0.2"
     },
@@ -212,7 +212,7 @@
       "version": "2025.08.26"
     },
     {
-      "name": "W电台",
+      "name": "W电台_1",
       "url": "https://cdn.jsdelivr.net/gh/GuGuMur/MusicFreePlugin-NeteaseRadio@master/dist/plugin.js",
       "version": "0.0.2"
     }
