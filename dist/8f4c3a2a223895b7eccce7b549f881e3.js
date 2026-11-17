@@ -22,17 +22,24 @@ async function $19a45cbfdc5a1d1d$var$searchMusic(query, page) {
     let keyword = encodeURIComponent(query);
     let serchUrl = (0, $f143b11fc67a70bd$export$5e032988b71f6158) + "/s/" + keyword;
     let songs = [];
+    // 站点已迁到 Cloudflare，响应较慢，超时放宽
     let searchRes = (await (0, ($parcel$interopDefault($aeeUC$axios))).get(serchUrl, {
-        timeout: 5000
+        timeout: 30000
     })).data;
     const $ = $aeeUC$cheerio.load(searchRes);
-    var rowList = $(".card-text").find(".row").slice(1);
+    // 新版结构：.card-text 下 .row.no-gutters 行，内含 a.hover-zoom（title="歌名 - 歌手"）
+    var rowList = $(".card-text").find(".row.no-gutters");
     for(let i = 0; i < rowList.length; i++){
-        var id = $(rowList[i]).find("a.music-link").attr("href").match(/\/music\/(\d+)/)[1];
-        var title = $(rowList[i]).find("a.music-link span").eq(0).text().toString().trim();
-        var artist = $(rowList[i]).find("small").text().toString().trim();
+        var a = $(rowList[i]).find("a.hover-zoom").eq(0);
+        var href = a.attr("href") || "";
+        var m = href.match(/\/music\/(\d+)/);
+        if (!m) continue;
+        var titleAttr = (a.attr("title") || "").trim();
+        var parts = titleAttr.split(" - ");
+        var title = (parts[0] || "").trim();
+        var artist = (parts.length > 1 ? parts.slice(1).join(" - ") : "").trim();
         songs.push({
-            id: id,
+            id: m[1],
             title: title,
             artist: artist
         });
@@ -50,36 +57,71 @@ async function $19a45cbfdc5a1d1d$export$2e2bcd8739ae039(query, page, type) {
 
 
 const $f143b11fc67a70bd$export$5e032988b71f6158 = "https://www.gequbao.com";
+const $f143b11fc67a70bd$var$UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
 async function $f143b11fc67a70bd$var$getMediaSource(musicItem, quality) {
     // https://www.gequbao.com/music/5465
     let tempUrl = $f143b11fc67a70bd$export$5e032988b71f6158 + "/music/" + musicItem.id;
-    let tempRes = (await (0, ($parcel$interopDefault($aeeUC$axios))).get(tempUrl, {
-        timeout: 5000
-    })).data;
+    // 1. 获取歌页（建立会话，站点在 Cloudflare 后较慢）
+    const pageRes = await (0, ($parcel$interopDefault($aeeUC$axios))).get(tempUrl, {
+        headers: {
+            "User-Agent": $f143b11fc67a70bd$var$UA,
+            "Referer": $f143b11fc67a70bd$export$5e032988b71f6158 + "/"
+        },
+        timeout: 30000
+    });
+    const html = typeof pageRes.data === "string" ? pageRes.data : "";
     let id = "";
-    const scriptContent = tempRes.match(/<script[^>]*>[\s\S]*?window\.appData\s*=\s*({.*?});[\s\S]*?<\/script>/i);
-    if (scriptContent && scriptContent[1]) {
-        const appData = JSON.parse(scriptContent[1]);
-        id = appData.play_id;
+    // 新版：window.appData = JSON.parse('...\u0022play_id\u0022:\u0022(base64)...')
+    const mNew = html.match(/play_id\\u0022:\\u0022([A-Za-z0-9+/=]+)/);
+    if (mNew) id = mNew[1];
+    if (!id) {
+        // 旧版兼容：window.appData = {...};
+        const scriptContent = html.match(/<script[^>]*>[\s\S]*?window\.appData\s*=\s*({.*?});[\s\S]*?<\/script>/i);
+        if (scriptContent && scriptContent[1]) try {
+            id = JSON.parse(scriptContent[1]).play_id;
+        } catch (e) {}
     }
-    let serchUrl = $f143b11fc67a70bd$export$5e032988b71f6158 + "/api/play-url";
-    var body = "id=" + id;
-    var headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Connection": "Keep-Alive"
+    if (!id) return {
+        url: ""
     };
-    var searchRes = await (0, ($parcel$interopDefault($aeeUC$axios))).post(serchUrl, body, {
-        headers: headers,
-        timeout: 100000
-    }); //log(html)
+    // 2. 提取会话 cookie（新接口必须携带）
+    let cookie = "";
+    try {
+        const setCookies = pageRes.headers["set-cookie"] || pageRes.headers["Set-Cookie"] || [];
+        const arr = Array.isArray(setCookies) ? setCookies : [
+            setCookies
+        ];
+        cookie = arr.map((c)=>String(c).split(";")[0]).join("; ");
+    } catch (e) {}
+    // 3. 新版取链接口 /member/common-play-url
+    const res = await (0, ($parcel$interopDefault($aeeUC$axios))).post($f143b11fc67a70bd$export$5e032988b71f6158 + "/member/common-play-url", "id=" + encodeURIComponent(id) + "&purpose=play", {
+        headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "X-Requested-With": "XMLHttpRequest",
+            "Referer": tempUrl,
+            "User-Agent": $f143b11fc67a70bd$var$UA,
+            ...cookie ? {
+                Cookie: cookie
+            } : {}
+        },
+        timeout: 30000
+    });
+    const d = res.data;
+    if (d && d.code === 1 && d.data && d.data.url) return {
+        url: d.data.url
+    };
     return {
-        url: searchRes.data.data.url
+        url: ""
     };
 }
 async function $f143b11fc67a70bd$var$getLyric(musicItem) {
     let serchUrl = $f143b11fc67a70bd$export$5e032988b71f6158 + "/music/" + musicItem.id;
     let searchRes = (await (0, ($parcel$interopDefault($aeeUC$axios))).get(serchUrl, {
-        timeout: 5000
+        headers: {
+            "User-Agent": $f143b11fc67a70bd$var$UA,
+            "Referer": $f143b11fc67a70bd$export$5e032988b71f6158 + "/"
+        },
+        timeout: 30000
     })).data;
     const $ = $aeeUC$cheerio.load(searchRes);
     return {
@@ -180,16 +222,15 @@ const $f143b11fc67a70bd$var$pluginInstance = {
     getRecommendSheetsByTag: $f143b11fc67a70bd$var$getRecommendSheetsByTag,
     getMusicSheetInfo: $f143b11fc67a70bd$var$getMusicSheetInfo
 };
-(0, $19a45cbfdc5a1d1d$export$2e2bcd8739ae039)("明天会更好", 1, "music").then((res)=>{
-    console.log(res);
-    $f143b11fc67a70bd$var$getMediaSource(res.data[0], "standard").then((res)=>{
-        console.log(res);
-    });
-    $f143b11fc67a70bd$var$getLyric(res.data[0]).then((res)=>{
-        console.log(res);
-    });
-});
-var /*getRecommendSheetTags().then((res) => {
+var /*search("明天会更好", 1, "music").then((res) => {
+    console.log(res)
+    getMediaSource(res.data[0], "standard").then((res) => {
+        console.log(res)
+    })
+    getLyric(res.data[0]).then((res) => {
+        console.log(res)
+    })
+})*/ /*getRecommendSheetTags().then((res) => {
     console.log(res)
     getRecommendSheetsByTag(res.data[0].data[0], 1).then((res) => {
         console.log(res)
@@ -206,4 +247,4 @@ var /*getRecommendSheetTags().then((res) => {
 })*/ $f143b11fc67a70bd$export$2e2bcd8739ae039 = $f143b11fc67a70bd$var$pluginInstance;
 
 
-//# sourceMappingURL=gequbao.js.map
+//# sourceMappingURL=htqyy.js.map

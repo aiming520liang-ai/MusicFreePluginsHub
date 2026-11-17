@@ -24,6 +24,109 @@ $parcel$export(module.exports, "default", () => $69c13ef3ab1c1f3e$export$2e2bcd8
 
 
 
+/**
+ * 星海音乐后端 (yy.zddyr.top/lx/api) 通用取链工具
+ *
+ * 替代已失效的 lxmusicapi.onrender.com：
+ * 通过星海统一后端获取各平台播放地址（网易云/酷狗/酷我/QQ/咪咕）。
+ * 服务器需先签发 token (X-Token)，token 有效期约 5 分钟，本地提前刷新。
+ */ 
+const $d6283ddcbc551b94$var$API_BASE = "https://yy.zddyr.top/lx/api/";
+const $d6283ddcbc551b94$var$TOKEN_TTL = 240000; // 4 分钟，早于服务端 5 分钟过期
+let $d6283ddcbc551b94$var$_token = "";
+let $d6283ddcbc551b94$var$_tokenExpire = 0;
+/** 获取(并缓存)服务器令牌 */ async function $d6283ddcbc551b94$var$ensureToken() {
+    if ($d6283ddcbc551b94$var$_token && Date.now() < $d6283ddcbc551b94$var$_tokenExpire) return $d6283ddcbc551b94$var$_token;
+    const deviceId = "lx-musicfree-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const res = await (0, ($parcel$interopDefault($8Nr7K$axios))).get($d6283ddcbc551b94$var$API_BASE + "token.php", {
+        params: {
+            device_id: deviceId
+        },
+        headers: {
+            "User-Agent": "lx-music",
+            "X-Client": "LX-Music-Mobile"
+        },
+        timeout: 8000
+    });
+    const tk = res.data && res.data.data && res.data.data.token;
+    if (tk) {
+        $d6283ddcbc551b94$var$_token = tk;
+        $d6283ddcbc551b94$var$_tokenExpire = Date.now() + $d6283ddcbc551b94$var$TOKEN_TTL;
+    }
+    return tk || "";
+}
+/** MusicFree 音质档位 -> 后端音质 */ const $d6283ddcbc551b94$var$qualityMap = {
+    low: "128k",
+    standard: "320k",
+    high: "flac",
+    super: "flac24bit"
+};
+/** 平台 -> 后端 source 参数 */ const $d6283ddcbc551b94$var$platformSourceMap = {
+    netease: "wy",
+    kugou: "kg",
+    kuwo: "kw",
+    qq: "qq",
+    migu: "migu"
+};
+async function $d6283ddcbc551b94$export$2e074d413efa36c6(platform, musicItem, quality) {
+    const backendSource = $d6283ddcbc551b94$var$platformSourceMap[platform];
+    const q = $d6283ddcbc551b94$var$qualityMap[quality] || "320k";
+    if (!backendSource) return "";
+    const params = {
+        source: backendSource,
+        quality: q
+    };
+    if (backendSource === "kg") {
+        // 酷狗：以 hash 为准
+        const h = musicItem.id || musicItem.hash || "";
+        params.songmid = h;
+        params.mainHash = h;
+        params.hash = h;
+        params.name = musicItem.title || "";
+    } else if (backendSource === "migu") {
+        // 咪咕：优先 copyrightId，其次 songId/id
+        params.name = musicItem.title || "";
+        params.singer = musicItem.artist || "";
+        params.songmid = musicItem.copyrightId || musicItem.id || "";
+        params.albumName = musicItem.album || "";
+    } else if (backendSource === "qq") {
+        // QQ：用 songmid
+        params.name = musicItem.title || "";
+        params.singer = musicItem.artist || "";
+        params.songmid = musicItem.songmid || musicItem.id || "";
+        params.albumName = musicItem.album || "";
+    } else {
+        params.name = musicItem.title || "";
+        params.singer = musicItem.artist || "";
+        params.songmid = musicItem.id || "";
+        params.albumName = musicItem.album || "";
+    }
+    // 注意：不能用 async 箭头函数（安卓 Hermes 引擎不支持），必须用具名 function
+    async function doFetch(tokenValue) {
+        return (await (0, ($parcel$interopDefault($8Nr7K$axios))).get($d6283ddcbc551b94$var$API_BASE, {
+            params: params,
+            headers: {
+                "X-Token": tokenValue,
+                "User-Agent": "lx-music"
+            },
+            timeout: 20000
+        })).data;
+    }
+    let tk = await $d6283ddcbc551b94$var$ensureToken();
+    if (!tk) return "";
+    let data = await doFetch(tk);
+    // token 失效则刷新一次重试
+    if (!data || data.code === 403 || data.auth && (data.auth.tk_mismatch || data.auth.tk_error)) {
+        $d6283ddcbc551b94$var$_token = "";
+        $d6283ddcbc551b94$var$_tokenExpire = 0;
+        tk = await $d6283ddcbc551b94$var$ensureToken();
+        if (tk) data = await doFetch(tk);
+    }
+    if (data && data.code === 200 && data.url) return String(data.url);
+    return "";
+}
+
+
 function $69c13ef3ab1c1f3e$var$create_key() {
     var d, e, b = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", c = "";
     for(d = 0; 16 > d; d += 1)e = Math.random() * b.length, e = Math.floor(e), c += b.charAt(e);
@@ -407,21 +510,8 @@ const $69c13ef3ab1c1f3e$var$qualityLevels = {
     super: "flac24bit"
 };
 async function $69c13ef3ab1c1f3e$var$getMediaSource(musicItem, quality) {
-    let url = "";
-    const res = (await (0, ($parcel$interopDefault($8Nr7K$axios))).get(`https://lxmusicapi.onrender.com/url/wy/${musicItem.id}/${$69c13ef3ab1c1f3e$var$qualityLevels[quality]}`, {
-        headers: {
-            "X-Request-Key": "share-v2"
-        }
-    })).data;
-    if (!res.url || res.msg != "success") {
-        const res2 = (await (0, ($parcel$interopDefault($8Nr7K$axios))).get(`https://lxmusicapi.onrender.com/url/wy/${musicItem.id}/${$69c13ef3ab1c1f3e$var$qualityLevels[quality]}`, {
-            headers: {
-                "X-Request-Key": "share-v2"
-            }
-        })).data;
-        if (!res2.url || res2.msg != "success") ;
-        else url = res2.url;
-    } else url = res.url;
+    // 网易云：通过星海后端取链（替代已失效的 lxmusicapi.onrender.com）
+    const url = await (0, $d6283ddcbc551b94$export$2e074d413efa36c6)("netease", musicItem, quality);
     return {
         url: url
     };
@@ -544,7 +634,7 @@ async function $69c13ef3ab1c1f3e$var$search(query, page, type) {
 const $69c13ef3ab1c1f3e$var$pluginInstance = {
     platform: "小芸音乐",
     author: "SoEasy同学",
-    version: "0.0.3",
+    version: "0.0.4",
     srcUrl: "https://gitee.com/kevinr/tvbox/raw/master/musicfree/plugins/xiaoyun.js",
     cacheControl: "no-store",
     hints: {
@@ -586,4 +676,4 @@ $69c13ef3ab1c1f3e$var$search("童话镇", 1, "music").then((res)=>{
 var $69c13ef3ab1c1f3e$export$2e2bcd8739ae039 = $69c13ef3ab1c1f3e$var$pluginInstance;
 
 
-//# sourceMappingURL=xiaoyun.js.map
+//# sourceMappingURL=htqyy.js.map

@@ -20,6 +20,109 @@ $parcel$export(module.exports, "default", () => $28c810e89c2349b3$export$2e2bcd8
 
 
 
+/**
+ * 星海音乐后端 (yy.zddyr.top/lx/api) 通用取链工具
+ *
+ * 替代已失效的 lxmusicapi.onrender.com：
+ * 通过星海统一后端获取各平台播放地址（网易云/酷狗/酷我/QQ/咪咕）。
+ * 服务器需先签发 token (X-Token)，token 有效期约 5 分钟，本地提前刷新。
+ */ 
+const $d6283ddcbc551b94$var$API_BASE = "https://yy.zddyr.top/lx/api/";
+const $d6283ddcbc551b94$var$TOKEN_TTL = 240000; // 4 分钟，早于服务端 5 分钟过期
+let $d6283ddcbc551b94$var$_token = "";
+let $d6283ddcbc551b94$var$_tokenExpire = 0;
+/** 获取(并缓存)服务器令牌 */ async function $d6283ddcbc551b94$var$ensureToken() {
+    if ($d6283ddcbc551b94$var$_token && Date.now() < $d6283ddcbc551b94$var$_tokenExpire) return $d6283ddcbc551b94$var$_token;
+    const deviceId = "lx-musicfree-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    const res = await (0, ($parcel$interopDefault($hTj9b$axios))).get($d6283ddcbc551b94$var$API_BASE + "token.php", {
+        params: {
+            device_id: deviceId
+        },
+        headers: {
+            "User-Agent": "lx-music",
+            "X-Client": "LX-Music-Mobile"
+        },
+        timeout: 8000
+    });
+    const tk = res.data && res.data.data && res.data.data.token;
+    if (tk) {
+        $d6283ddcbc551b94$var$_token = tk;
+        $d6283ddcbc551b94$var$_tokenExpire = Date.now() + $d6283ddcbc551b94$var$TOKEN_TTL;
+    }
+    return tk || "";
+}
+/** MusicFree 音质档位 -> 后端音质 */ const $d6283ddcbc551b94$var$qualityMap = {
+    low: "128k",
+    standard: "320k",
+    high: "flac",
+    super: "flac24bit"
+};
+/** 平台 -> 后端 source 参数 */ const $d6283ddcbc551b94$var$platformSourceMap = {
+    netease: "wy",
+    kugou: "kg",
+    kuwo: "kw",
+    qq: "qq",
+    migu: "migu"
+};
+async function $d6283ddcbc551b94$export$2e074d413efa36c6(platform, musicItem, quality) {
+    const backendSource = $d6283ddcbc551b94$var$platformSourceMap[platform];
+    const q = $d6283ddcbc551b94$var$qualityMap[quality] || "320k";
+    if (!backendSource) return "";
+    const params = {
+        source: backendSource,
+        quality: q
+    };
+    if (backendSource === "kg") {
+        // 酷狗：以 hash 为准
+        const h = musicItem.id || musicItem.hash || "";
+        params.songmid = h;
+        params.mainHash = h;
+        params.hash = h;
+        params.name = musicItem.title || "";
+    } else if (backendSource === "migu") {
+        // 咪咕：优先 copyrightId，其次 songId/id
+        params.name = musicItem.title || "";
+        params.singer = musicItem.artist || "";
+        params.songmid = musicItem.copyrightId || musicItem.id || "";
+        params.albumName = musicItem.album || "";
+    } else if (backendSource === "qq") {
+        // QQ：用 songmid
+        params.name = musicItem.title || "";
+        params.singer = musicItem.artist || "";
+        params.songmid = musicItem.songmid || musicItem.id || "";
+        params.albumName = musicItem.album || "";
+    } else {
+        params.name = musicItem.title || "";
+        params.singer = musicItem.artist || "";
+        params.songmid = musicItem.id || "";
+        params.albumName = musicItem.album || "";
+    }
+    // 注意：不能用 async 箭头函数（安卓 Hermes 引擎不支持），必须用具名 function
+    async function doFetch(tokenValue) {
+        return (await (0, ($parcel$interopDefault($hTj9b$axios))).get($d6283ddcbc551b94$var$API_BASE, {
+            params: params,
+            headers: {
+                "X-Token": tokenValue,
+                "User-Agent": "lx-music"
+            },
+            timeout: 20000
+        })).data;
+    }
+    let tk = await $d6283ddcbc551b94$var$ensureToken();
+    if (!tk) return "";
+    let data = await doFetch(tk);
+    // token 失效则刷新一次重试
+    if (!data || data.code === 403 || data.auth && (data.auth.tk_mismatch || data.auth.tk_error)) {
+        $d6283ddcbc551b94$var$_token = "";
+        $d6283ddcbc551b94$var$_tokenExpire = 0;
+        tk = await $d6283ddcbc551b94$var$ensureToken();
+        if (tk) data = await doFetch(tk);
+    }
+    if (data && data.code === 200 && data.url) return String(data.url);
+    return "";
+}
+
+
 const $28c810e89c2349b3$var$pageSize = 20;
 function $28c810e89c2349b3$var$formatMusicItem(_) {
     var _a, _b, _c, _d, _e, _f, _g, _h, _i;
@@ -172,23 +275,8 @@ const $28c810e89c2349b3$var$qualityLevels = {
     super: "flac24bit"
 };
 async function $28c810e89c2349b3$var$getMediaSource(musicItem, quality) {
-    let url = "";
-    // https://m.kugou.com/mixsong/j2ss6c1.html
-    // const paramUrl = "http://110.42.38.239:1314/url/kg/" + musicItem.id + "/" + qualityLevels[quality];
-    const res1 = (await (0, ($parcel$interopDefault($hTj9b$axios))).get(`https://lxmusicapi.onrender.com/url/kg/${musicItem.id}/${$28c810e89c2349b3$var$qualityLevels[quality]}`, {
-        headers: {
-            "X-Request-Key": "share-v2"
-        }
-    })).data;
-    if (!res1.url || res1.msg != "success") {
-        const res2 = (await (0, ($parcel$interopDefault($hTj9b$axios))).get(`https://lxmusicapi.onrender.com/url/kg/${musicItem.id}/${$28c810e89c2349b3$var$qualityLevels[quality]}`, {
-            headers: {
-                "X-Request-Key": "share-v2"
-            }
-        })).data;
-        if (!res2.url || res2.msg != "success") ;
-        else url = res2.url;
-    } else url = res1.url;
+    // 酷狗：通过星海后端取链（替代已失效的 lxmusicapi.onrender.com）
+    const url = await (0, $d6283ddcbc551b94$export$2e074d413efa36c6)("kugou", musicItem, quality);
     return {
         url: url
     };
@@ -324,73 +412,6 @@ async function $28c810e89c2349b3$var$getAlbumInfo(albumItem, page = 1) {
         })
     };
 }
-async function $28c810e89c2349b3$var$importMusicSheet(urlLike) {
-    var _a;
-    let id = (_a = urlLike.match(/^(?:.*?)(\d+)(?:.*?)$/)) === null || _a === void 0 ? void 0 : _a[1];
-    let musicList = [];
-    if (!id) return;
-    let res = await (0, ($parcel$interopDefault($hTj9b$axios))).post(`http://t.kugou.com/command/`, {
-        appid: 1001,
-        clientver: 9020,
-        mid: "21511157a05844bd085308bc76ef3343",
-        clienttime: 640612895,
-        key: "36164c4015e704673c588ee202b9ecb8",
-        data: id
-    });
-    if (res.status === 200 && res.data.status === 1) {
-        let data = res.data.data;
-        let response = await (0, ($parcel$interopDefault($hTj9b$axios))).post(`http://www2.kugou.kugou.com/apps/kucodeAndShare/app/`, {
-            appid: 1001,
-            clientver: 10112,
-            mid: "70a02aad1ce4648e7dca77f2afa7b182",
-            clienttime: 722219501,
-            key: "381d7062030e8a5a94cfbe50bfe65433",
-            data: {
-                id: data.info.id,
-                type: 3,
-                userid: data.info.userid,
-                collect_type: data.info.collect_type,
-                page: 1,
-                pagesize: data.info.count
-            }
-        });
-        if (response.status === 200 && response.data.status === 1) {
-            let resource = [];
-            response.data.data.forEach((song)=>{
-                resource.push({
-                    album_audio_id: 0,
-                    album_id: "0",
-                    hash: song.hash,
-                    id: 0,
-                    name: song.filename.replace(".mp3", ""),
-                    page_id: 0,
-                    type: "audio"
-                });
-            });
-            let postData = {
-                appid: 1001,
-                area_code: "1",
-                behavior: "play",
-                clientver: "10112",
-                dfid: "2O3jKa20Gdks0LWojP3ly7ck",
-                mid: "70a02aad1ce4648e7dca77f2afa7b182",
-                need_hash_offset: 1,
-                relate: 1,
-                resource: resource,
-                token: "",
-                userid: "0",
-                vip: 0
-            };
-            var result = await (0, ($parcel$interopDefault($hTj9b$axios))).post(`https://gateway.kugou.com/v2/get_res_privilege/lite?appid=1001&clienttime=1668883879&clientver=10112&dfid=2O3jKa20Gdks0LWojP3ly7ck&mid=70a02aad1ce4648e7dca77f2afa7b182&userid=390523108&uuid=92691C6246F86F28B149BAA1FD370DF1`, postData, {
-                headers: {
-                    "x-router": "media.store.kugou.com"
-                }
-            });
-            if (response.status === 200 && response.data.status === 1) musicList = result.data.data.map($28c810e89c2349b3$var$formatImportMusicItem);
-        }
-    }
-    return musicList;
-}
 async function $28c810e89c2349b3$var$search(query, page, type) {
     if (type === "music") return await $28c810e89c2349b3$var$searchMusic(query, page);
     else if (type === "album") return await $28c810e89c2349b3$var$searchAlbum(query, page);
@@ -399,7 +420,7 @@ async function $28c810e89c2349b3$var$search(query, page, type) {
 const $28c810e89c2349b3$var$pluginInstance = {
     platform: "小枸音乐",
     author: "SoEasy同学",
-    version: "0.0.3",
+    version: "0.0.4",
     srcUrl: "https://gitee.com/kevinr/tvbox/raw/master/musicfree/plugins/xiaogou.js",
     cacheControl: "no-cache",
     primaryKey: [
@@ -424,8 +445,7 @@ const $28c810e89c2349b3$var$pluginInstance = {
     getTopLists: $28c810e89c2349b3$var$getTopLists,
     getLyric: $28c810e89c2349b3$var$getLyric,
     getTopListDetail: $28c810e89c2349b3$var$getTopListDetail,
-    getAlbumInfo: $28c810e89c2349b3$var$getAlbumInfo,
-    importMusicSheet: $28c810e89c2349b3$var$importMusicSheet
+    getAlbumInfo: $28c810e89c2349b3$var$getAlbumInfo
 };
 $28c810e89c2349b3$var$search("童话镇", 1, "music").then((res)=>{
     console.log(res);
@@ -439,4 +459,4 @@ $28c810e89c2349b3$var$search("童话镇", 1, "music").then((res)=>{
 var $28c810e89c2349b3$export$2e2bcd8739ae039 = $28c810e89c2349b3$var$pluginInstance;
 
 
-//# sourceMappingURL=xiaogou.js.map
+//# sourceMappingURL=htqyy.js.map
